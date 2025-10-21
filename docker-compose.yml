@@ -1,16 +1,18 @@
-version: "3.8"
+x-common: &common
+  env_file: [.env]
 
 services:
   postgres_db:
+    <<: *common
     image: postgres:15
-    container_name: ct_postgres
+    container_name: ${POSTGRES_CONTAINER_NAME}
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: ct_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,20 +20,45 @@ services:
       interval: 10s
       retries: 5
 
-  airflow-webserver:
+  # one-shot init that sets up the DB and creates an admin user
+  airflow-init:
     image: apache/airflow:2.7.1
-    container_name: airflow_webserver
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+    env_file:
+      - .env
+    entrypoint: /bin/bash -c
+    command: >
+      set -e;
+      echo "Initializing Airflow DB...";
+      airflow db init;
+      echo "Creating admin user...";
+      airflow users create
+        --username "${AIRFLOW_ADMIN_USER}"
+        --firstname "${AIRFLOW_ADMIN_FIRST:-Admin}"
+        --lastname "${AIRFLOW_ADMIN_LAST:-User}"
+        --role ${AIRFLOW_ADMIN_LAST:-Admin}
+        --email "${AIRFLOW_ADMIN_EMAIL}"
+        --password "${AIRFLOW_ADMIN_PASSWORD}";
+      echo "Airflow init done.";
+    restart: "no"
+
+  airflow-webserver:
+    <<: *common
+    image: apache/airflow:2.7.1
+    container_name: ${AIRFLOW_CONTAINER_NAME}
     restart: always
     depends_on:
       postgres_db:
         condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres_db:5432/ct_db
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:{POSTGRES_PASSWORD}@postgres_db:${POSTGRES_PORT}/ct_db
       AIRFLOW__CORE__FERNET_KEY: 'iHzhi9DLtqByNp1P2--Ea0ViXTlT6ZJ0z94H8PQNWsk='
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
       AIRFLOW__CORE__LOAD_EXAMPLES: 'False'
-      AIRFLOW__WEBSERVER__WEB_SERVER_PORT: 8088
+      AIRFLOW__WEBSERVER__WEB_SERVER_PORT: ${AIRFLOW__WEBSERVER__WEB_SERVER_PORT}
       AIRFLOW__CORE__STORE_SERIALIZED_DAGS: "True"
       _PIP_ADDITIONAL_REQUIREMENTS: "pandas sqlalchemy psycopg2-binary requests"
     volumes:
@@ -40,7 +67,7 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - ./airflow/data:/opt/airflow/data
     ports:
-      - "8088:8088"
+      - ${AIRFLOW_PORT}:${AIRFLOW_PORT}
     command: webserver
 
   airflow-scheduler:
@@ -54,7 +81,7 @@ services:
         condition: service_started
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres_db:5432/ct_db
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres_db:${POSTGRES_PORT}/ct_db
       AIRFLOW__CORE__FERNET_KEY: 'iHzhi9DLtqByNp1P2--Ea0ViXTlT6ZJ0z94H8PQNWsk='
       _PIP_ADDITIONAL_REQUIREMENTS: "pandas sqlalchemy psycopg2-binary requests"
       
@@ -66,14 +93,15 @@ services:
     command: scheduler
 
   pgadmin:
+    <<: *common
     image: dpage/pgadmin4:7
     container_name: pgadmin_v2
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@admin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_USER_NAME}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
     ports:
-      - "5050:80"
+      - "${PGADMIN_PORT}:80"
     depends_on:
       - postgres_db
     volumes:

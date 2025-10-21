@@ -1,0 +1,31 @@
+@"
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Envs / IDE
+.venv/
+venv/
+.env
+.env.*
+.vscode/
+.idea/
+
+# Airflow runtime stuff
+airflow/logs/
+airflow/*.pid
+airflow/*.db
+airflow/*.sqlite*
+airflow/airflow-webserver.pid
+airflow/airflow-scheduler.pid
+
+# General logs & junk
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+"@ | Out-File -Encoding utf8 .gitignore

@@ -1,0 +1,9 @@
+
+requests
+airflow
+fastapi[standard]
+uvicorn
+sqlalchemy
+psycopg2-binary
+python-dotenv
+# docker run -d --name my_pgadmin -e PGADMIN_DEFAULT_EMAIL=admin@example.com -e PGADMIN_DEFAULT_PASSWORD=admin123 -p 8080:80 --link my_postgres:postgres dpage/pgadmin4

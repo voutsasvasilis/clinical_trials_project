@@ -8,8 +8,8 @@ __pycache__/
 # Envs / IDE
 .venv/
 venv/
-.env
-.env.*
+# .env
+# .env.*
 .vscode/
 .idea/
 
